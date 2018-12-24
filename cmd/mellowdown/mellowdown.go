@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 
 	"github.com/mattn/goemon"
 	"github.com/pkg/errors"
@@ -121,7 +120,7 @@ func main() {
 				skip = false
 				continue
 			}
-			cmdbuf = append(cmdbuf, syscall.EscapeArg(arg))
+			cmdbuf = append(cmdbuf, EscapeArg(arg))
 		}
 		tempfile, err := ioutil.TempFile("", "mellowdown")
 		if err != nil {

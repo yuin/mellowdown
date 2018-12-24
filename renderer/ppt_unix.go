@@ -2,6 +2,6 @@
 
 package renderer
 
-func NewPPTRenderer(file, outdir string) FenceCodeRenderer {
+func NewPPTRenderer() Renderer {
 	return &NullRenderer{}
 }
