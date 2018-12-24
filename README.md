@@ -76,7 +76,7 @@ automatically convert markdown files and live reload the browser.
 ```
 @echo off
 set GRAPHVIZ_DOT=C:\PATH_TO\dot.exe
-set PLANTUML_JAR=%~dp1plantuml.jar
+set PLANTUML_JAR=%~dp0plantuml.jar
 
 java -jar %PLANTUML_JAR% -charset UTF-8 %*
 ```

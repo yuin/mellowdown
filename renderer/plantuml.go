@@ -65,10 +65,10 @@ func (r *PlantUMLRenderer) Render(w io.Writer, node Node) error {
 	}
 	temp := filepath.Join(dir, fmt.Sprintf("%x", h.Sum(nil)))
 	if _, err := os.Stat(temp + ".png"); os.IsNotExist(err) {
-		defer os.Remove(temp)
 		if err := ioutil.WriteFile(temp, node.Text(), os.ModePerm); err != nil {
 			return errors.WithStack(err)
 		}
+		defer os.Remove(temp)
 		if err := exec.Command(r.optPlantUMLPath, temp).Run(); err != nil {
 			return errors.WithStack(err)
 		}
