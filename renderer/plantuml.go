@@ -65,6 +65,10 @@ func (r *PlantUMLRenderer) Render(w io.Writer, node Node) error {
 	}
 	temp := filepath.Join(dir, fmt.Sprintf("%x", h.Sum(nil)))
 	if _, err := os.Stat(temp + ".png"); os.IsNotExist(err) {
+		if _, err := os.Stat(r.optPlantUMLPath); os.IsNotExist(err) {
+			return errors.Errorf("PlantUML launcher '%s' not found on path", r.optPlantUMLPath)
+		}
+
 		if err := ioutil.WriteFile(temp, node.Text(), os.ModePerm); err != nil {
 			return errors.WithStack(err)
 		}

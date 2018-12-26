@@ -76,17 +76,19 @@ func main() {
 		optFile            string
 		optStyle           string
 		optAddr            string
+		optLuaScripts      string
 	)
 	flag.StringVar(&optOutputDirectory, "out", "", "Output Directory(Optional)")
 	flag.StringVar(&optFile, "file", "", "Markdown file(Required)")
 	flag.StringVar(&optStyle, "style", "github", fmt.Sprintf("Style (Optional, available styles:%s)", strings.Join(style.Names(), ",")))
 	flag.StringVar(&optAddr, "addr", "", "address like localhost:8000, this enables livereloading")
+	flag.StringVar(&optLuaScripts, "lua", "", "comma separeted lua renderers")
 	rs := []renderer.Renderer{
 		renderer.NewPlantUMLRenderer(),
 		renderer.NewPPTRenderer(),
-		renderer.NewLuaRenderer(),
 		renderer.NewSyntaxHighlightingRenderer(),
 	}
+
 	for _, r := range rs {
 		r.AddOption()
 	}
@@ -96,6 +98,21 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
+	syntaxr := rs[len(rs)-1]
+	rs = rs[:len(rs)-1]
+
+	if len(optLuaScripts) > 0 {
+		for _, script := range strings.Split(optLuaScripts, ",") {
+			r, err := renderer.NewLuaRenderer(script)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%+v\n", err)
+				os.Exit(1)
+			}
+			rs = append(rs, r)
+		}
+	}
+	rs = append(rs, syntaxr)
+
 	if !filepath.IsAbs(optFile) {
 		optFile, _ = filepath.Abs(optFile)
 	}

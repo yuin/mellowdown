@@ -9,11 +9,11 @@ function renderer:render(writer, node)
   writer:write("write from lua:" .. tostring(node:text()) .. "\n")
 end
 
-function renderer:render_header(writer)
+function renderer:header(writer)
   writer:write("<!-- header from lua -->")
 end
 
-function renderer:render_footer(writer)
+function renderer:footer(writer)
   writer:write("<!-- footer from lua -->")
 end
 
