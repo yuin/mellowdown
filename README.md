@@ -11,26 +11,39 @@ go get -u github.com/yuin/mellowdown/cmd/mellowdown
 ## Usage
 
 ```
--addr string
-      address like localhost:8000, this enables livereloading
--file string
-      Markdown file(Required)
--lua string
-      comma separeted lua renderers
--out string
-      Output Directory(Optional)
--plantuml string
-      PlantUML Path(Optional). If PLANTUML_PATH envvar is not empty, this option will be overwritten by its value. (default "plantuml")
--style string
-      Style (Optional, available styles:github) (default "github")
--syntax-highlight string
-      Syntax Highlightinging Style (Optional, available styles:abap,algol,algol_nu,arduino,autumn,borland,bw,colorful,dracula,emacs,friendly,fruity,github,igor,lovelace,manni,monokai,monokailight,murphy,native,paraiso-dark,paraiso-light,pastie,perldoc,pygments,rainbow_dash,rrt,solarized-dark,solarized-dark256,solarized-light,swapoff,tango,trac,vim,vs,xcode) (default "monokailight")
+  -addr string
+        address like localhost:8000, this enables livereloading
+  -file string
+        Markdown file(Required)
+  -format string
+        Output format(html or pdf) (default "html")
+  -lua string
+        comma separeted lua renderers
+  -out string
+        Output Directory(Optional)
+  -plantuml string
+        PlantUML executable file path(Optional). If this value is empty, PLANTUML_PATH envvar value will be used as an executable file path (default "plantuml")
+  -style string
+        Style (Optional, available styles:github) (default "github")
+  -syntax-highlight string
+        Syntax Highlightinging Style (Optional, available styles:abap,algol,algol_nu,arduino,autumn,borland,bw,colorful,dracula,emacs,friendly,fruity,github,igor,lovelace,manni,monokai,monokailight,murphy,native,paraiso-dark,paraiso-light,pastie,perldoc,pygments,rainbow_dash,rrt,solarized-dark,solarized-dark256,solarized-light,swapoff,tango,trac,vim,vs,xcode) (default "monokailight")
+  -wkhtmltopdf string
+        Wkhtmltopdf executable file path(Optional). If this value is empty, WKHTMLTOPDF_PATH envvar value will be used as an executable file path
 ```
 
 ### Convert a markdown file to an html file
 
 ```
 mellowdown -file input.md
+```
+
+### Convert a markdown file to a pdf file
+Requirements:
+
+- [wkhtmltopdf](https://wkhtmltopdf.org/)
+
+```
+mellowdown -file input.md -format pdf
 ```
 
 ### Watch markdown files in the current directory

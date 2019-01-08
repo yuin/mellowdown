@@ -36,11 +36,11 @@ func (r *PlantUMLRenderer) SetFile(path string) {
 }
 
 func (r *PlantUMLRenderer) AddOption() {
-	flag.StringVar(&r.optPlantUMLPath, "plantuml", "plantuml", "PlantUML Path(Optional). If PLANTUML_PATH envvar is not empty, this option will be overwritten by its value.")
+	flag.StringVar(&r.optPlantUMLPath, "plantuml", "plantuml", "PlantUML executable file path(Optional). If this value is empty, PLANTUML_PATH envvar value will be used as an executable file path")
 }
 
 func (r *PlantUMLRenderer) InitOption() {
-	if len(os.Getenv("PLANTUML_PATH")) != 0 {
+	if len(os.Getenv("PLANTUML_PATH")) != 0 && len(r.optPlantUMLPath) == 0 {
 		r.optPlantUMLPath = os.Getenv("PLANTUML_PATH")
 	}
 }

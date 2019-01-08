@@ -17,6 +17,8 @@ import (
 
 	blackfriday "gopkg.in/russross/blackfriday.v2"
 
+	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
+
 	"github.com/yuin/mellowdown/renderer"
 	"github.com/yuin/mellowdown/style"
 )
@@ -70,18 +72,27 @@ func getTitle(html []byte) string {
 	return ""
 }
 
+func abort(err interface{}, status int) {
+	fmt.Fprintf(os.Stderr, "%+v\n", err)
+	os.Exit(status)
+}
+
 func main() {
 	var (
 		optOutputDirectory string
 		optFile            string
+		optFormat          string
 		optStyle           string
 		optAddr            string
+		optWkhtmltopdfPath string
 		optLuaScripts      string
 	)
 	flag.StringVar(&optOutputDirectory, "out", "", "Output Directory(Optional)")
 	flag.StringVar(&optFile, "file", "", "Markdown file(Required)")
+	flag.StringVar(&optFormat, "format", "html", "Output format(html or pdf)")
 	flag.StringVar(&optStyle, "style", "github", fmt.Sprintf("Style (Optional, available styles:%s)", strings.Join(style.Names(), ",")))
 	flag.StringVar(&optAddr, "addr", "", "address like localhost:8000, this enables livereloading")
+	flag.StringVar(&optWkhtmltopdfPath, "wkhtmltopdf", "", "Wkhtmltopdf executable file path(Optional). If this value is empty, WKHTMLTOPDF_PATH envvar value will be used as an executable file path")
 	flag.StringVar(&optLuaScripts, "lua", "", "comma separeted lua renderers")
 	rs := []renderer.Renderer{
 		renderer.NewPlantUMLRenderer(),
@@ -93,7 +104,7 @@ func main() {
 		r.AddOption()
 	}
 	flag.Parse()
-	if len(optFile) == 0 && len(optAddr) == 0 {
+	if len(optFile) == 0 && len(optAddr) == 0 || (optFormat != "html" && optFormat != "pdf") {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 		os.Exit(1)
@@ -105,8 +116,7 @@ func main() {
 		for _, script := range strings.Split(optLuaScripts, ",") {
 			r, err := renderer.NewLuaRenderer(script)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "%+v\n", err)
-				os.Exit(1)
+				abort(err, 1)
 			}
 			rs = append(rs, r)
 		}
@@ -119,6 +129,18 @@ func main() {
 	if len(optOutputDirectory) == 0 {
 		optOutputDirectory = filepath.Dir(optFile)
 	}
+
+	filename := filepath.Base(optFile)
+	pdffile := filepath.Join(optOutputDirectory, filename[0:len(filename)-len(".md")]+".pdf")
+	if optFormat == "pdf" {
+		var err error
+		optOutputDirectory, err = ioutil.TempDir("", "mellowdown-")
+		if err != nil {
+			abort(err, 1)
+		}
+		defer os.RemoveAll(optOutputDirectory)
+	}
+
 	for _, r := range rs {
 		r.SetFile(optFile)
 		r.SetOutputDirectory(optOutputDirectory)
@@ -141,12 +163,10 @@ func main() {
 		}
 		tempfile, err := ioutil.TempFile("", "mellowdown")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%+v\n", errors.WithStack(err))
-			os.Exit(1)
+			abort(err, 1)
 		}
 		if _, err := tempfile.Write([]byte(fmt.Sprintf(goemonconf, strings.Join(cmdbuf, " ")))); err != nil {
-			fmt.Fprintf(os.Stderr, "%+v\n", errors.WithStack(err))
-			os.Exit(1)
+			abort(err, 1)
 		}
 		defer os.Remove(tempfile.Name())
 		c := make(chan os.Signal, 1)
@@ -181,33 +201,50 @@ func main() {
 
 		bs, err := ioutil.ReadFile(optFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%+v\n", err)
-			os.Exit(1)
+			abort(err, 1)
 		}
 		defer func() {
 			if rcv := recover(); rcv != nil {
 				if err, ok := rcv.(error); ok {
-					fmt.Fprintf(os.Stderr, "%+v\n", errors.WithStack(err))
-					os.Exit(1)
+					abort(err, 1)
 				} else {
-					fmt.Fprintf(os.Stderr, "%v\n", rcv)
-					os.Exit(1)
+					abort(rcv, 1)
 				}
 			}
 		}()
 		fmt.Fprintf(r.HeaderWriter(), "\n<style>\n%s\n</style>\n", style.Get(optStyle))
 		result := blackfriday.Run(bs, blackfriday.WithRenderer(r))
-		filename := filepath.Base(optFile)
-		htmlfile := filename[0:len(filename)-len(".md")] + ".html"
+		htmlfile := filepath.Join(optOutputDirectory, filename[0:len(filename)-len(".md")]+".html")
 		if err := ensureDirectoryExists(optOutputDirectory); err != nil {
-			fmt.Fprintf(os.Stderr, "%+v\n", errors.WithStack(err))
-			os.Exit(1)
+			abort(err, 1)
 		}
 		htmldata := fmt.Sprintf(template, getTitle(result), r.HeaderHTML(), result, r.FooterHTML())
 
-		if err := ioutil.WriteFile(filepath.Join(optOutputDirectory, htmlfile), []byte(htmldata), os.ModePerm); err != nil {
-			fmt.Fprintf(os.Stderr, "%+v\n", errors.WithStack(err))
-			os.Exit(1)
+		if err := ioutil.WriteFile(htmlfile, []byte(htmldata), os.ModePerm); err != nil {
+			abort(err, 1)
+		}
+
+		if optFormat == "pdf" {
+			wkhtmltopdf.SetPath(os.Getenv("WKHTMLTOPDF_PATH"))
+			if len(optWkhtmltopdfPath) != 0 {
+				wkhtmltopdf.SetPath(optWkhtmltopdfPath)
+			}
+			pdfg, err := wkhtmltopdf.NewPDFGenerator()
+			if err != nil {
+				abort(err, 1)
+			}
+			page := wkhtmltopdf.NewPage(htmlfile)
+			page.FooterRight.Set("[page]")
+			page.FooterFontSize.Set(10)
+			pdfg.AddPage(page)
+
+			if err := pdfg.Create(); err != nil {
+				abort(err, 1)
+			}
+
+			if err := pdfg.WriteFile(pdffile); err != nil {
+				abort(err, 1)
+			}
 		}
 	}
 }
