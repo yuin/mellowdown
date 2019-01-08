@@ -225,10 +225,13 @@ func main() {
 		}
 
 		if optFormat == "pdf" {
-			wkhtmltopdf.SetPath(os.Getenv("WKHTMLTOPDF_PATH"))
-			if len(optWkhtmltopdfPath) != 0 {
-				wkhtmltopdf.SetPath(optWkhtmltopdfPath)
+			if len(optWkhtmltopdfPath) == 0 {
+				optWkhtmltopdfPath = os.Getenv("WKHTMLTOPDF_PATH")
 			}
+			if len(optWkhtmltopdfPath) == 0 {
+				optWkhtmltopdfPath = "wkhtmltopdf"
+			}
+			wkhtmltopdf.SetPath(optWkhtmltopdfPath)
 			pdfg, err := wkhtmltopdf.NewPDFGenerator()
 			if err != nil {
 				abort(err, 1)
