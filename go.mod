@@ -3,6 +3,7 @@ module github.com/yuin/mellowdown
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.3.0
 	github.com/alecthomas/chroma v0.6.2
+	github.com/alessio/shellescape v0.0.0-20170105083845-52074bc9df61
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/go-ole/go-ole v1.2.2
 	github.com/gorilla/websocket v1.4.0 // indirect
