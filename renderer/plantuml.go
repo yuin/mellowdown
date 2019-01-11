@@ -52,7 +52,7 @@ func (r *PlantUMLRenderer) NewDocument() {
 }
 
 func (r *PlantUMLRenderer) Accept(n Node) bool {
-	return n.Type() == FencedCode && n.FencedCodeBlock().Info() == "uml"
+	return n.Type() == NodeFencedCode && n.FencedCodeBlock().Info() == "uml"
 }
 
 func (r *PlantUMLRenderer) RenderHeader(w io.Writer) error {

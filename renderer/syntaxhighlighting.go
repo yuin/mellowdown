@@ -44,7 +44,7 @@ func (r *SyntaxHighlightingRenderer) NewDocument() {
 }
 
 func (r *SyntaxHighlightingRenderer) Accept(n Node) bool {
-	return n.Type() == FencedCode && lexers.Get(n.FencedCodeBlock().Info()) != nil
+	return n.Type() == NodeFencedCode && lexers.Get(n.FencedCodeBlock().Info()) != nil
 }
 
 func (r *SyntaxHighlightingRenderer) RenderHeader(w io.Writer) error {

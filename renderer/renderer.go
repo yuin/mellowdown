@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"github.com/pkg/errors"
 	blackfriday "gopkg.in/russross/blackfriday.v2"
@@ -16,12 +17,14 @@ type HTMLRenderer struct {
 	renderers    []Renderer
 	headerWriter bytes.Buffer
 	footerWriter bytes.Buffer
+	function     string
 }
 
 func NewHTMLRenderer(params blackfriday.HTMLRendererParameters, rs []Renderer) *HTMLRenderer {
 	ret := &HTMLRenderer{
 		HTMLRenderer: blackfriday.NewHTMLRenderer(params),
 		renderers:    rs,
+		function:     "",
 	}
 	for _, r := range rs {
 		r.NewDocument()
@@ -35,8 +38,38 @@ func NewHTMLRenderer(params blackfriday.HTMLRendererParameters, rs []Renderer) *
 	return ret
 }
 
+var funcRegex *regexp.Regexp
+
+func init() {
+	funcRegex = regexp.MustCompile(`(?:(?:.*[^\\])|\A)!(\w[\w0-9_-]+)!`)
+}
+
 func (r *HTMLRenderer) RenderNode(w io.Writer, node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
-	n, ok := newNode(node)
+	var n Node
+	f := ""
+	ok := false
+	if len(r.function) != 0 {
+		f = r.function
+		r.function = ""
+		if node.Type == blackfriday.Code {
+			n = newFunctionNode(node, f)
+			ok = true
+		} else {
+			fmt.Fprintf(w, "!%s!", f)
+		}
+	}
+	if node.Type == blackfriday.Text {
+		result := funcRegex.FindAllSubmatchIndex(node.Literal, -1)
+		if len(result) > 0 && result[0][len(result[0])-1] == len(node.Literal)-1 {
+			fmt.Fprint(w, string(node.Literal[:result[0][len(result[0])-2]-1]))
+			r.function = string(node.Literal[result[0][len(result[0])-2]:result[0][len(result[0])-1]])
+			return blackfriday.GoToNext
+		}
+	}
+
+	if !ok {
+		n, ok = newNode(node)
+	}
 	if ok {
 		for _, fr := range r.renderers {
 			if fr.Accept(n) {
@@ -46,6 +79,10 @@ func (r *HTMLRenderer) RenderNode(w io.Writer, node *blackfriday.Node, entering 
 				return blackfriday.GoToNext
 			}
 		}
+	}
+
+	if ok && n.Type() == NodeFunction {
+		fmt.Fprintf(w, "!%s!", f)
 	}
 	return r.HTMLRenderer.RenderNode(w, node, entering)
 }

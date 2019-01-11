@@ -10,8 +10,9 @@ import (
 type NodeType int
 
 const (
-	Invalid = iota
-	FencedCode
+	Invalid NodeType = iota
+	NodeFencedCode
+	NodeFunction
 )
 
 type FencedCodeBlock interface {
@@ -39,22 +40,50 @@ func (b *fencedCodeBlock) Info() string {
 	return b.info
 }
 
+type Function interface {
+	Name() string
+}
+
+type function struct {
+	name string
+}
+
+func newFunction(name string) Function {
+	return &function{
+		name: name,
+	}
+}
+
+func (f *function) Name() string {
+	return f.name
+}
+
 type Node interface {
 	Type() NodeType
 	Text() []byte
 	FencedCodeBlock() FencedCodeBlock
+	Function() Function
 }
 
 type node struct {
 	nodeType        NodeType
 	fencedCodeBlock FencedCodeBlock
+	function        Function
 	node            *blackfriday.Node
+}
+
+func newFunctionNode(n *blackfriday.Node, name string) Node {
+	return &node{
+		nodeType: NodeFunction,
+		node:     n,
+		function: newFunction(name),
+	}
 }
 
 func newNode(n *blackfriday.Node) (Node, bool) {
 	if n.Type == blackfriday.CodeBlock && n.CodeBlockData.IsFenced {
 		return &node{
-			nodeType:        FencedCode,
+			nodeType:        NodeFencedCode,
 			fencedCodeBlock: newFencedCodeBlock(&n.CodeBlockData),
 			node:            n,
 		}, true
@@ -73,4 +102,8 @@ func (n *node) Text() []byte {
 
 func (n *node) FencedCodeBlock() FencedCodeBlock {
 	return n.fencedCodeBlock
+}
+
+func (n *node) Function() Function {
+	return n.function
 }

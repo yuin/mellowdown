@@ -58,7 +58,7 @@ func (r *PPTRenderer) NewDocument() {
 }
 
 func (r *PPTRenderer) Accept(n Node) bool {
-	return n.Type() == FencedCode && n.FencedCodeBlock().Info() == "ppt"
+	return n.Type() == NodeFencedCode && n.FencedCodeBlock().Info() == "ppt"
 }
 
 func (r *PPTRenderer) RenderHeader(w io.Writer) error {
