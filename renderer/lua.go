@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -69,19 +70,7 @@ func (r *LuaRenderer) Name() string {
 	return "lua"
 }
 
-func (r *LuaRenderer) SetOutputDirectory(path string) {
-	if err := r.call("set_output_directory", luar.New(r.l, path)); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-	}
-}
-
-func (r *LuaRenderer) SetFile(path string) {
-	if err := r.call("set_file", luar.New(r.l, path)); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-	}
-}
-
-func (r *LuaRenderer) AddOption() {
+func (r *LuaRenderer) AddOption(fs *flag.FlagSet) {
 }
 
 func (r *LuaRenderer) InitOption() {
@@ -118,8 +107,8 @@ func (r *LuaRenderer) Accept(n Node) bool {
 	return lua.LVAsBool(getResult(r.l))
 }
 
-func (r *LuaRenderer) RenderHeader(w io.Writer) error {
-	if err := r.call("header", luar.New(r.l, w)); err != nil {
+func (r *LuaRenderer) RenderHeader(w io.Writer, c RenderingContext) error {
+	if err := r.call("header", luar.New(r.l, w), luar.New(r.l, c)); err != nil {
 		return err
 	}
 	if s, ok := getResult(r.l).(lua.LString); ok {
@@ -128,8 +117,8 @@ func (r *LuaRenderer) RenderHeader(w io.Writer) error {
 	return nil
 }
 
-func (r *LuaRenderer) Render(w io.Writer, node Node) error {
-	if err := r.call("render", luar.New(r.l, w), luar.New(r.l, node)); err != nil {
+func (r *LuaRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
+	if err := r.call("render", luar.New(r.l, w), luar.New(r.l, node), luar.New(r.l, c)); err != nil {
 		return err
 	}
 	if s, ok := getResult(r.l).(lua.LString); ok {
@@ -138,8 +127,8 @@ func (r *LuaRenderer) Render(w io.Writer, node Node) error {
 	return nil
 }
 
-func (r *LuaRenderer) RenderFooter(w io.Writer) error {
-	if err := r.call("footer", luar.New(r.l, w)); err != nil {
+func (r *LuaRenderer) RenderFooter(w io.Writer, c RenderingContext) error {
+	if err := r.call("footer", luar.New(r.l, w), luar.New(r.l, c)); err != nil {
 		return err
 	}
 	if s, ok := getResult(r.l).(lua.LString); ok {

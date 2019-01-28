@@ -3,6 +3,7 @@
 package renderer
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -21,8 +22,6 @@ const ppShapeFormatBMP = 3
 const ppScaleXY = 4
 
 type PPTRenderer struct {
-	File            string
-	OutputDirectory string
 }
 
 type PPT struct {
@@ -36,19 +35,11 @@ func NewPPTRenderer() Renderer {
 	return &PPTRenderer{}
 }
 
-func (r *PPTRenderer) SetOutputDirectory(path string) {
-	r.OutputDirectory = path
-}
-
-func (r *PPTRenderer) SetFile(path string) {
-	r.File = path
-}
-
 func (r *PPTRenderer) Name() string {
 	return "ppt"
 }
 
-func (r *PPTRenderer) AddOption() {
+func (r *PPTRenderer) AddOption(fs *flag.FlagSet) {
 }
 
 func (r *PPTRenderer) InitOption() {
@@ -61,17 +52,17 @@ func (r *PPTRenderer) Accept(n Node) bool {
 	return n.Type() == NodeFencedCode && n.FencedCodeBlock().Info() == "ppt"
 }
 
-func (r *PPTRenderer) RenderHeader(w io.Writer) error {
+func (r *PPTRenderer) RenderHeader(w io.Writer, c RenderingContext) error {
 	return nil
 }
 
-func (r *PPTRenderer) Render(w io.Writer, node Node) error {
+func (r *PPTRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
 	var ppt PPT
 	err := yaml.Unmarshal(node.Text(), &ppt)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	dir, err := ImageDirectory(r.OutputDirectory)
+	dir, err := c.ImageDirectory()
 	if err != nil {
 		return err
 	}
@@ -80,14 +71,14 @@ func (r *PPTRenderer) Render(w io.Writer, node Node) error {
 	if _, err := os.Stat(outpath); os.IsNotExist(err) {
 		file := ppt.File
 		if !filepath.IsAbs(file) {
-			file = filepath.Clean(filepath.Join(filepath.Dir(r.File), file))
+			file = filepath.Clean(filepath.Join(filepath.Dir(c.InputFile()), file))
 		}
 
 		if err := r.ppt2png(file, ppt.ShapeName, outpath, ppt.Width, ppt.Height); err != nil {
 			return err
 		}
 	}
-	relpath, _ := filepath.Rel(r.OutputDirectory, outpath)
+	relpath, _ := filepath.Rel(c.OutputDirectory(), outpath)
 	fmt.Fprintf(w, "<img src=\"%s\" style=\"display:block\" />", relpath)
 	return nil
 }
@@ -158,6 +149,6 @@ func (r *PPTRenderer) ppt2png(filename, shapename, outpath string, w, h int) err
 	return nil
 }
 
-func (r *PPTRenderer) RenderFooter(w io.Writer) error {
+func (r *PPTRenderer) RenderFooter(w io.Writer, c RenderingContext) error {
 	return nil
 }

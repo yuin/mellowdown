@@ -34,7 +34,7 @@ go get -u github.com/yuin/mellowdown/cmd/mellowdown
 ### Convert a markdown file to an html file
 
 ```
-mellowdown -file input.md
+mellowdown render -file input.md
 ```
 
 ### Convert a markdown file to a pdf file
@@ -43,13 +43,13 @@ Requirements:
 - [wkhtmltopdf](https://wkhtmltopdf.org/)
 
 ```
-mellowdown -file input.md -format pdf
+mellowdown render -file input.md -format pdf
 ```
 
 ### Watch markdown files in the current directory
 
 ```
-mellowdown -addr ":8000"
+mellowdown render -addr ":8000"
 ```
 
 Open `*.html` in your browser and edit markdown files, mellowdown will

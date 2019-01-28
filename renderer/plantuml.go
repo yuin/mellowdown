@@ -14,7 +14,6 @@ import (
 )
 
 type PlantUMLRenderer struct {
-	OutputDirectory string
 	optPlantUMLPath string
 }
 
@@ -28,15 +27,8 @@ func (r *PlantUMLRenderer) Name() string {
 	return "platnuml"
 }
 
-func (r *PlantUMLRenderer) SetOutputDirectory(path string) {
-	r.OutputDirectory = path
-}
-
-func (r *PlantUMLRenderer) SetFile(path string) {
-}
-
-func (r *PlantUMLRenderer) AddOption() {
-	flag.StringVar(&r.optPlantUMLPath, "plantuml", "", "PlantUML executable file path(Optional). If this value is empty, PLANTUML_PATH envvar value will be used as an executable file path")
+func (r *PlantUMLRenderer) AddOption(fs *flag.FlagSet) {
+	fs.StringVar(&r.optPlantUMLPath, "plantuml", "", "PlantUML executable file path(Optional). If this value is empty, PLANTUML_PATH envvar value will be used as an executable file path")
 }
 
 func (r *PlantUMLRenderer) InitOption() {
@@ -55,14 +47,14 @@ func (r *PlantUMLRenderer) Accept(n Node) bool {
 	return n.Type() == NodeFencedCode && n.FencedCodeBlock().Info() == "uml"
 }
 
-func (r *PlantUMLRenderer) RenderHeader(w io.Writer) error {
+func (r *PlantUMLRenderer) RenderHeader(w io.Writer, c RenderingContext) error {
 	return nil
 }
 
-func (r *PlantUMLRenderer) Render(w io.Writer, node Node) error {
+func (r *PlantUMLRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
 	h := sha256.New()
 	h.Write(node.Text())
-	dir, err := ImageDirectory(r.OutputDirectory)
+	dir, err := c.ImageDirectory()
 	if err != nil {
 		return err
 	}
@@ -80,11 +72,11 @@ func (r *PlantUMLRenderer) Render(w io.Writer, node Node) error {
 			return errors.WithStack(err)
 		}
 	}
-	relpath, _ := filepath.Rel(r.OutputDirectory, temp+".png")
+	relpath := c.StaticPath(temp + ".png")
 	fmt.Fprintf(w, "<img src=\"%s\" style=\"display:block\" />", relpath)
 	return nil
 }
 
-func (r *PlantUMLRenderer) RenderFooter(w io.Writer) error {
+func (r *PlantUMLRenderer) RenderFooter(w io.Writer, c RenderingContext) error {
 	return nil
 }

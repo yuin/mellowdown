@@ -26,14 +26,8 @@ func (r *SyntaxHighlightingRenderer) Name() string {
 	return "syntax-highlight"
 }
 
-func (r *SyntaxHighlightingRenderer) SetOutputDirectory(path string) {
-}
-
-func (r *SyntaxHighlightingRenderer) SetFile(path string) {
-}
-
-func (r *SyntaxHighlightingRenderer) AddOption() {
-	flag.StringVar(&r.optHighlight, "syntax-highlight", "monokailight", fmt.Sprintf("Syntax Highlightinging Style (Optional, available styles:%s)", strings.Join(chromastyles.Names(), ",")))
+func (r *SyntaxHighlightingRenderer) AddOption(fs *flag.FlagSet) {
+	fs.StringVar(&r.optHighlight, "syntax-highlight", "monokailight", fmt.Sprintf("Syntax Highlightinging Style (Optional, available styles:%s)", strings.Join(chromastyles.Names(), ",")))
 }
 
 func (r *SyntaxHighlightingRenderer) InitOption() {
@@ -47,7 +41,7 @@ func (r *SyntaxHighlightingRenderer) Accept(n Node) bool {
 	return n.Type() == NodeFencedCode && lexers.Get(n.FencedCodeBlock().Info()) != nil
 }
 
-func (r *SyntaxHighlightingRenderer) RenderHeader(w io.Writer) error {
+func (r *SyntaxHighlightingRenderer) RenderHeader(w io.Writer, c RenderingContext) error {
 	formatter := html.New(html.WithClasses())
 	fmt.Fprint(w, "\n<style>\n")
 	formatter.WriteCSS(w, r.Style)
@@ -55,7 +49,7 @@ func (r *SyntaxHighlightingRenderer) RenderHeader(w io.Writer) error {
 	return nil
 }
 
-func (r *SyntaxHighlightingRenderer) Render(w io.Writer, node Node) error {
+func (r *SyntaxHighlightingRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
 	lexer := lexers.Get(node.FencedCodeBlock().Info())
 	iterator, err := lexer.Tokenise(nil, fmt.Sprintf("%s", node.Text()))
 	if err != nil {
@@ -72,6 +66,6 @@ func (r *SyntaxHighlightingRenderer) Render(w io.Writer, node Node) error {
 	return nil
 }
 
-func (r *SyntaxHighlightingRenderer) RenderFooter(w io.Writer) error {
+func (r *SyntaxHighlightingRenderer) RenderFooter(w io.Writer, c RenderingContext) error {
 	return nil
 }

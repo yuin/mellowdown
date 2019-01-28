@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"flag"
 	"io"
 )
 
@@ -15,13 +16,7 @@ func (r *NullRenderer) Name() string {
 	return ""
 }
 
-func (r *NullRenderer) SetOutputDirectory(path string) {
-}
-
-func (r *NullRenderer) SetFile(path string) {
-}
-
-func (r *NullRenderer) AddOption() {
+func (r *NullRenderer) AddOption(fs *flag.FlagSet) {
 }
 
 func (r *NullRenderer) InitOption() {
@@ -34,14 +29,14 @@ func (r *NullRenderer) Accept(n Node) bool {
 	return false
 }
 
-func (r *NullRenderer) RenderHeader(w io.Writer) error {
+func (r *NullRenderer) RenderHeader(w io.Writer, c RenderingContext) error {
 	return nil
 }
 
-func (r *NullRenderer) Render(w io.Writer, node Node) error {
+func (r *NullRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
 	return nil
 }
 
-func (r *NullRenderer) RenderFooter(w io.Writer) error {
+func (r *NullRenderer) RenderFooter(w io.Writer, c RenderingContext) error {
 	return nil
 }
