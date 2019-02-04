@@ -3,7 +3,6 @@
 package renderer
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -39,10 +38,10 @@ func (r *PPTRenderer) Name() string {
 	return "ppt"
 }
 
-func (r *PPTRenderer) AddOption(fs *flag.FlagSet) {
+func (r *PPTRenderer) AddOption(o Option) {
 }
 
-func (r *PPTRenderer) InitOption() {
+func (r *PPTRenderer) InitOption(o Option) {
 }
 
 func (r *PPTRenderer) NewDocument() {
@@ -62,16 +61,12 @@ func (r *PPTRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	dir, err := c.ImageDirectory()
-	if err != nil {
-		return err
-	}
-
+	dir := c.StaticDirectory()
 	outpath := filepath.Join(dir, ppt.ShapeName+".png")
 	if _, err := os.Stat(outpath); os.IsNotExist(err) {
 		file := ppt.File
 		if !filepath.IsAbs(file) {
-			file = filepath.Clean(filepath.Join(filepath.Dir(c.InputFile()), file))
+			file = filepath.Clean(filepath.Join(filepath.Dir(c.SourceFile()), file))
 		}
 
 		if err := r.ppt2png(file, ppt.ShapeName, outpath, ppt.Width, ppt.Height); err != nil {

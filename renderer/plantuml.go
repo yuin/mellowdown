@@ -2,7 +2,6 @@ package renderer
 
 import (
 	"crypto/sha256"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/pkg/errors"
+	lua "github.com/yuin/gopher-lua"
 )
 
 type PlantUMLRenderer struct {
@@ -27,11 +27,22 @@ func (r *PlantUMLRenderer) Name() string {
 	return "platnuml"
 }
 
-func (r *PlantUMLRenderer) AddOption(fs *flag.FlagSet) {
-	fs.StringVar(&r.optPlantUMLPath, "plantuml", "", "PlantUML executable file path(Optional). If this value is empty, PLANTUML_PATH envvar value will be used as an executable file path")
+func (r *PlantUMLRenderer) AddOption(o Option) {
+	switch o.Type() {
+	case Cli:
+		o.Flag().StringVar(&r.optPlantUMLPath, "plantuml", "", "PlantUML executable file path(Optional). If this value is empty, PLANTUML_PATH envvar value will be used as an executable file path")
+	case Lua:
+		o.Lua().DoString(`plantuml = {
+			path = ""
+		}`)
+	}
 }
 
-func (r *PlantUMLRenderer) InitOption() {
+func (r *PlantUMLRenderer) InitOption(o Option) {
+	if o.Type() == Lua {
+		r.optPlantUMLPath = string(o.Lua().GetGlobal("plantuml").(*lua.LTable).RawGetString("path").(lua.LString))
+	}
+
 	if len(r.optPlantUMLPath) == 0 {
 		r.optPlantUMLPath = os.Getenv("PLANTUML_PATH")
 	}
@@ -54,10 +65,7 @@ func (r *PlantUMLRenderer) RenderHeader(w io.Writer, c RenderingContext) error {
 func (r *PlantUMLRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
 	h := sha256.New()
 	h.Write(node.Text())
-	dir, err := c.ImageDirectory()
-	if err != nil {
-		return err
-	}
+	dir := c.StaticDirectory()
 	temp := filepath.Join(dir, fmt.Sprintf("%x", h.Sum(nil)))
 	if _, err := os.Stat(temp + ".png"); os.IsNotExist(err) {
 		if _, err := os.Stat(r.optPlantUMLPath); os.IsNotExist(err) {

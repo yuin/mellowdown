@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"flag"
 	"io"
 )
 
@@ -16,10 +15,10 @@ func (r *NullRenderer) Name() string {
 	return ""
 }
 
-func (r *NullRenderer) AddOption(fs *flag.FlagSet) {
+func (r *NullRenderer) AddOption(o Option) {
 }
 
-func (r *NullRenderer) InitOption() {
+func (r *NullRenderer) InitOption(o Option) {
 }
 
 func (r *NullRenderer) NewDocument() {

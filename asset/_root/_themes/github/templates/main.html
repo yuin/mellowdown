@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>{{.Title}}</title>
+{{ .StyleSheets }}
+{{ .Scripts }}
+{{ if .Debug }}
+  {{ .LiveReloadScript }}
+{{ end }}
+{{ .Header }}
+</head>
+<body>
+<article class="markdown-body">
+{{ .Content }}
+</article>
+{{ .Footer}}
+</body>
+</html>

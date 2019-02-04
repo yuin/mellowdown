@@ -2,7 +2,6 @@ package renderer
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"io"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/alecthomas/chroma/formatters/html"
 	"github.com/alecthomas/chroma/lexers"
 	chromastyles "github.com/alecthomas/chroma/styles"
+	lua "github.com/yuin/gopher-lua"
 )
 
 type SyntaxHighlightingRenderer struct {
@@ -26,11 +26,25 @@ func (r *SyntaxHighlightingRenderer) Name() string {
 	return "syntax-highlight"
 }
 
-func (r *SyntaxHighlightingRenderer) AddOption(fs *flag.FlagSet) {
-	fs.StringVar(&r.optHighlight, "syntax-highlight", "monokailight", fmt.Sprintf("Syntax Highlightinging Style (Optional, available styles:%s)", strings.Join(chromastyles.Names(), ",")))
+func (r *SyntaxHighlightingRenderer) AddOption(o Option) {
+	switch o.Type() {
+	case Cli:
+		o.Flag().StringVar(&r.optHighlight, "syntax-highlight", "monokailight", fmt.Sprintf("Syntax Highlightinging Style (Optional, available styles:%s)", strings.Join(chromastyles.Names(), ",")))
+	case Lua:
+		o.Lua().DoString(`
+	      if theme == nil then
+		    theme = {}
+		  end
+		  theme["syntax_highlight"] = "monokailight"
+		`)
+	}
 }
 
-func (r *SyntaxHighlightingRenderer) InitOption() {
+func (r *SyntaxHighlightingRenderer) InitOption(o Option) {
+	if o.Type() == Lua {
+		r.optHighlight = string(o.Lua().GetGlobal("theme").(*lua.LTable).RawGetString("syntax_highlight").(lua.LString))
+	}
+
 	r.Style = chromastyles.Get(r.optHighlight)
 }
 

@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -70,10 +69,10 @@ func (r *LuaRenderer) Name() string {
 	return "lua"
 }
 
-func (r *LuaRenderer) AddOption(fs *flag.FlagSet) {
+func (r *LuaRenderer) AddOption(o Option) {
 }
 
-func (r *LuaRenderer) InitOption() {
+func (r *LuaRenderer) InitOption(o Option) {
 }
 
 func (r *LuaRenderer) NewDocument() {
