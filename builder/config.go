@@ -1,8 +1,17 @@
 package builder
 
 type config struct {
-	Site  siteConfig
-	Theme themeConfig
+	Site     siteConfig
+	Resource resourceConfig
+	Theme    themeConfig
+}
+
+type resourceConfig struct {
+	Extras        []string
+	ExtraPatterns []string
+
+	Ignores        []string
+	IgnorePatterns []string
 }
 
 type themeConfig struct {

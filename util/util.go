@@ -1,11 +1,50 @@
 package util
 
 import (
+	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
+
+var nonAlphaNumeric = regexp.MustCompile("[^a-zA-Z0-9]+")
+var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
+var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
+
+func SlashPath(path string) string {
+	return strings.Replace(path, "\\", "/", -2)
+}
+
+func CleanRelPath(base, target string) string {
+	rel, _ := filepath.Rel(base, target)
+	return SlashPath(filepath.Clean(rel))
+}
+
+func IsUrl(s string) bool {
+	_, err := url.ParseRequestURI(s)
+	return err == nil
+}
+
+func GenId(exists map[string]bool, name string) string {
+	anName := nonAlphaNumeric.ReplaceAllString(name, "")
+	if len(anName) == 0 {
+		anName = "h"
+	}
+	if _, ok := exists[anName]; ok {
+		for i := 0; ; i++ {
+			newName := fmt.Sprintf("%s%d", anName, i)
+			if _, ok := exists[newName]; !ok {
+				anName = newName
+				break
+			}
+		}
+	}
+	exists[anName] = true
+	return anName
+}
 
 func GetTitle(html []byte) string {
 	for _, r := range []*regexp.Regexp{
@@ -76,4 +115,10 @@ func WriteFile(path string, data []byte) error {
 		return err
 	}
 	return nil
+}
+
+func ToSnakeCase(str string) string {
+	snake := matchFirstCap.ReplaceAllString(str, "${1}_${2}")
+	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
+	return strings.ToLower(snake)
 }

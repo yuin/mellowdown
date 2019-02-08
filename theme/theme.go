@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"github.com/Masterminds/sprig"
 	"github.com/yuin/mellowdown/asset"
 	"html/template"
 	"io/ioutil"
@@ -44,7 +45,7 @@ func (t *theme) MainTemplate() (*template.Template, error) {
 			var bs []byte
 			bs, err = ioutil.ReadAll(file)
 			if err == nil {
-				t.mainTemplate, err = template.New("main").Parse(string(bs))
+				t.mainTemplate, err = template.New("main").Funcs(sprig.FuncMap()).Parse(string(bs))
 			}
 		}
 	})

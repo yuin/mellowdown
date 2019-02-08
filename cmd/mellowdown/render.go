@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
+	stdlog "log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,10 +12,12 @@ import (
 	"strings"
 
 	"github.com/mattn/goemon"
+	blackfriday "github.com/yuin/blackfriday/v2"
 	"github.com/yuin/mellowdown/asset"
+	"github.com/yuin/mellowdown/builder"
+	"github.com/yuin/mellowdown/log"
 	"github.com/yuin/mellowdown/renderer"
 	"github.com/yuin/mellowdown/theme"
-	blackfriday "gopkg.in/russross/blackfriday.v2"
 )
 
 const (
@@ -30,6 +32,7 @@ tasks:
 )
 
 type renderOptions struct {
+	Debug           bool
 	OutputDirectory string
 	File            string
 	Format          string
@@ -49,6 +52,7 @@ func render() {
 	}
 
 	fs := flag.NewFlagSet("mellowdown "+os.Args[1], flag.ExitOnError)
+	fs.BoolVar(&opts.Debug, "debug", false, "Debug mode")
 	fs.StringVar(&opts.OutputDirectory, "out", "", "Output Directory(Optional)")
 	fs.StringVar(&opts.File, "file", "", "Markdown file(Required)")
 	fs.StringVar(&opts.Format, "format", "html", "Output format(html or pdf)")
@@ -59,6 +63,8 @@ func render() {
 	rs := []renderer.Renderer{
 		renderer.NewPlantUMLRenderer(),
 		renderer.NewPPTRenderer(),
+		renderer.NewTOCRenderer(),
+		renderer.NewLabelRenderer(),
 		renderer.NewSyntaxHighlightingRenderer(),
 	}
 	option := renderer.NewCliOption(fs)
@@ -67,6 +73,13 @@ func render() {
 		r.AddOption(option)
 	}
 	fs.Parse(os.Args[2:])
+	var logger log.Logger
+	if opts.Debug {
+		logger = log.NewLogger(log.Debug)
+	} else {
+		logger = log.NewLogger(log.Info)
+	}
+
 	format, ok := renderer.FindFormat(opts.Format)
 
 	if len(opts.File) == 0 && len(opts.Addr) == 0 || !ok {
@@ -138,7 +151,7 @@ func render() {
 
 		g := goemon.NewWithArgs([]string{})
 		g.File = tempfile.Name()
-		g.Logger = log.New(os.Stdout, "[mellowdown]", log.LstdFlags)
+		g.Logger = stdlog.New(logger, "[mellowdown]", stdlog.LstdFlags)
 		g.Run()
 		http.Handle("/", http.FileServer(http.Dir(".")))
 		if err := http.ListenAndServe(opts.Addr, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,20 +161,28 @@ func render() {
 			abort(err, 1)
 		}
 	} else {
+		c, err := builder.New(logger, fileSystem).AnalyzeMarkdown(nil, opts.File)
+		if err != nil {
+			abort(err, 1)
+		}
+		ast, _ := c.FindAST(opts.File)
 		r := renderer.NewHTMLRenderer(
+			logger,
 			fileSystem,
 			blackfriday.HTMLRendererParameters{
 				Flags: blackfriday.CommonHTMLFlags,
 			},
-			renderer.SourceFile(opts.File),
-			renderer.SourceDirectory(filepath.Dir(opts.File)),
-			renderer.OutputDirectory(opts.OutputDirectory),
-			renderer.StaticDirectory(filepath.Join(opts.OutputDirectory, "statics")),
-			renderer.OutputFormat(format),
-			renderer.Renderers(rs...),
-			renderer.Theme(themev),
-			renderer.WkhtmltopdfPath(opts.WkhtmltopdfPath),
-			renderer.SiteStorage(map[string]interface{}{}),
+			renderer.WithSourceFile(opts.File),
+			renderer.WithSourceAST(ast),
+			renderer.WithSourceDirectory(filepath.Dir(opts.File)),
+			renderer.WithOutputDirectory(opts.OutputDirectory),
+			renderer.WithStaticDirectory(filepath.Join(opts.OutputDirectory, "statics")),
+			renderer.WithOutputFormat(format),
+			renderer.WithRenderers(rs...),
+			renderer.WithTheme(themev),
+			renderer.WithWkhtmltopdfPath(opts.WkhtmltopdfPath),
+			renderer.WithSiteStorage(map[string]interface{}{}),
+			renderer.WithBuildContext(c),
 		)
 		if err := r.Render(); err != nil {
 			abort(err, 1)

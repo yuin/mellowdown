@@ -51,11 +51,11 @@ func (r *PlantUMLRenderer) InitOption(o Option) {
 	}
 }
 
-func (r *PlantUMLRenderer) NewDocument() {
+func (r *PlantUMLRenderer) NewDocument(c RenderingContext) {
 }
 
-func (r *PlantUMLRenderer) Accept(n Node) bool {
-	return n.Type() == NodeFencedCode && n.FencedCodeBlock().Info() == "uml"
+func (r *PlantUMLRenderer) Acceptable() (NodeType, string) {
+	return NodeFencedCode, "uml"
 }
 
 func (r *PlantUMLRenderer) RenderHeader(w io.Writer, c RenderingContext) error {

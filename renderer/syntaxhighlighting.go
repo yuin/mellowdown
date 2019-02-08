@@ -48,11 +48,11 @@ func (r *SyntaxHighlightingRenderer) InitOption(o Option) {
 	r.Style = chromastyles.Get(r.optHighlight)
 }
 
-func (r *SyntaxHighlightingRenderer) NewDocument() {
+func (r *SyntaxHighlightingRenderer) NewDocument(c RenderingContext) {
 }
 
-func (r *SyntaxHighlightingRenderer) Accept(n Node) bool {
-	return n.Type() == NodeFencedCode && lexers.Get(n.FencedCodeBlock().Info()) != nil
+func (r *SyntaxHighlightingRenderer) Acceptable() (NodeType, string) {
+	return NodeFencedCode, Any
 }
 
 func (r *SyntaxHighlightingRenderer) RenderHeader(w io.Writer, c RenderingContext) error {
@@ -64,7 +64,7 @@ func (r *SyntaxHighlightingRenderer) RenderHeader(w io.Writer, c RenderingContex
 }
 
 func (r *SyntaxHighlightingRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
-	lexer := lexers.Get(node.FencedCodeBlock().Info())
+	lexer := lexers.Get(node.FencedCodeBlock().Identifier())
 	iterator, err := lexer.Tokenise(nil, fmt.Sprintf("%s", node.Text()))
 	if err != nil {
 		return err

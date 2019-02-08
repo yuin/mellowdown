@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"fmt"
 
-	blackfriday "gopkg.in/russross/blackfriday.v2"
+	blackfriday "github.com/yuin/blackfriday/v2"
 )
 
 type NodeType int
+
+const Any = "*"
 
 const (
 	Invalid NodeType = iota
@@ -15,13 +17,17 @@ const (
 	NodeFunction
 )
 
+type Identifierer interface {
+	Identifier() string
+}
+
 type FencedCodeBlock interface {
-	Info() string
+	Identifierer
 }
 
 type fencedCodeBlock struct {
-	d    *blackfriday.CodeBlockData
-	info string
+	d          *blackfriday.CodeBlockData
+	identifier string
 }
 
 func newFencedCodeBlock(d *blackfriday.CodeBlockData) FencedCodeBlock {
@@ -31,34 +37,42 @@ func newFencedCodeBlock(d *blackfriday.CodeBlockData) FencedCodeBlock {
 		endOfLang = len(info)
 	}
 	return &fencedCodeBlock{
-		d:    d,
-		info: fmt.Sprintf("%s", info[:endOfLang]),
+		d:          d,
+		identifier: fmt.Sprintf("%s", info[:endOfLang]),
 	}
 }
 
-func (b *fencedCodeBlock) Info() string {
-	return b.info
+func (b *fencedCodeBlock) Identifier() string {
+	return b.identifier
 }
 
 type Function interface {
-	Name() string
+	Identifierer
+	Arguments() []interface{}
 }
 
 type function struct {
-	name string
+	identifier string
+	arguments  []interface{}
 }
 
-func newFunction(name string) Function {
+func newFunction(name string, args []interface{}) Function {
 	return &function{
-		name: name,
+		identifier: name,
+		arguments:  args,
 	}
 }
 
-func (f *function) Name() string {
-	return f.name
+func (f *function) Identifier() string {
+	return f.identifier
+}
+
+func (f *function) Arguments() []interface{} {
+	return f.arguments
 }
 
 type Node interface {
+	Identifierer
 	Type() NodeType
 	Text() []byte
 	FencedCodeBlock() FencedCodeBlock
@@ -70,22 +84,25 @@ type node struct {
 	fencedCodeBlock FencedCodeBlock
 	function        Function
 	node            *blackfriday.Node
-}
-
-func newFunctionNode(n *blackfriday.Node, name string) Node {
-	return &node{
-		nodeType: NodeFunction,
-		node:     n,
-		function: newFunction(name),
-	}
+	identifier      string
 }
 
 func newNode(n *blackfriday.Node) (Node, bool) {
 	if n.Type == blackfriday.CodeBlock && n.CodeBlockData.IsFenced {
+		fc := newFencedCodeBlock(&n.CodeBlockData)
 		return &node{
 			nodeType:        NodeFencedCode,
 			fencedCodeBlock: newFencedCodeBlock(&n.CodeBlockData),
 			node:            n,
+			identifier:      fc.Identifier(),
+		}, true
+	} else if n.Type == blackfriday.Function {
+		fn := newFunction(n.FunctionData.Name, n.FunctionData.Arguments)
+		return &node{
+			nodeType:   NodeFunction,
+			node:       n,
+			function:   fn,
+			identifier: fn.Identifier(),
 		}, true
 	} else {
 		return nil, false
@@ -106,4 +123,8 @@ func (n *node) FencedCodeBlock() FencedCodeBlock {
 
 func (n *node) Function() Function {
 	return n.function
+}
+
+func (n *node) Identifier() string {
+	return n.identifier
 }

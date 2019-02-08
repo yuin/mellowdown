@@ -1,5 +1,12 @@
-aaaaa
-==============
+1 file rendering sample
+==========================
+
+``` toc
+depth: 3
+title: TOC
+```
+
+## lists
 
 - bbbbbああああ
 - c
@@ -10,10 +17,14 @@ aaaaa
 
 aaa `Filepath` ```DirPath```
 
+## tables
+
 Name    | Age
 --------|------
 Bob     | 27
 Alice   | 23
+
+## uml
 
 ``` uml
 @startuml
@@ -34,10 +45,14 @@ Entrant --> (Find Event)
 @enduml
 ```
 
+## PowerPoint
+
 ``` ppt
 file: images.pptx
 shape: image1
 ```
+
+## syntax highliting
 
 ``` go
 func (r *ChromaRenderer) Accept(info string) bool {

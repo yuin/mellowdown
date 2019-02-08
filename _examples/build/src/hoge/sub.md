@@ -1,5 +1,10 @@
 # sub
 
+``` ppt
+file: images.pptx
+shape: image1
+```
+
 ```uml
 @startuml
 [*] --> active
@@ -14,4 +19,9 @@ closed --> [*]
 
 @enduml
 ```
+
+[ ](#custom-id)
+
+![sub桜][a]
+[a]:./sub_sakura.jpg
 

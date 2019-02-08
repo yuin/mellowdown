@@ -5,7 +5,7 @@
 <title>{{.Title}}</title>
 {{ .StyleSheets }}
 {{ .Scripts }}
-{{ if .Debug }}
+{{ if .Dev }}
   {{ .LiveReloadScript }}
 {{ end }}
 {{ .Header }}
@@ -15,5 +15,10 @@
 {{ .Content }}
 </article>
 {{ .Footer}}
+{{ if .Site }}
+<footer>
+  <p><small>&copy; {{ .Site.Copyright }} </small></p>
+</footer>
+{{ end }}
 </body>
 </html>

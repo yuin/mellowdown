@@ -21,11 +21,15 @@ func (r *NullRenderer) AddOption(o Option) {
 func (r *NullRenderer) InitOption(o Option) {
 }
 
-func (r *NullRenderer) NewDocument() {
+func (r *NullRenderer) NewDocument(c RenderingContext) {
 }
 
 func (r *NullRenderer) Accept(n Node) bool {
 	return false
+}
+
+func (r *NullRenderer) Acceptable() (NodeType, string) {
+	return Invalid, ""
 }
 
 func (r *NullRenderer) RenderHeader(w io.Writer, c RenderingContext) error {

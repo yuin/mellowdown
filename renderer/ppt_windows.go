@@ -11,7 +11,6 @@ import (
 	ole "github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 	"github.com/pkg/errors"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const ppShapeFormatGIF = 0
@@ -44,11 +43,11 @@ func (r *PPTRenderer) AddOption(o Option) {
 func (r *PPTRenderer) InitOption(o Option) {
 }
 
-func (r *PPTRenderer) NewDocument() {
+func (r *PPTRenderer) NewDocument(c RenderingContext) {
 }
 
-func (r *PPTRenderer) Accept(n Node) bool {
-	return n.Type() == NodeFencedCode && n.FencedCodeBlock().Info() == "ppt"
+func (r *PPTRenderer) Acceptable() (NodeType, string) {
+	return NodeFencedCode, "ppt"
 }
 
 func (r *PPTRenderer) RenderHeader(w io.Writer, c RenderingContext) error {
@@ -57,7 +56,7 @@ func (r *PPTRenderer) RenderHeader(w io.Writer, c RenderingContext) error {
 
 func (r *PPTRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
 	var ppt PPT
-	err := yaml.Unmarshal(node.Text(), &ppt)
+	_, err := readMetaStruct(node.Text(), &ppt)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -73,8 +72,7 @@ func (r *PPTRenderer) Render(w io.Writer, node Node, c RenderingContext) error {
 			return err
 		}
 	}
-	relpath, _ := filepath.Rel(c.OutputDirectory(), outpath)
-	fmt.Fprintf(w, "<img src=\"%s\" style=\"display:block\" />", relpath)
+	fmt.Fprintf(w, "<img src=\"%s\" style=\"display:block\" />", c.StaticPath(outpath))
 	return nil
 }
 

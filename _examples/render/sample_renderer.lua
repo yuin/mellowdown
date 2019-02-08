@@ -1,8 +1,8 @@
 
 local renderer = {}
 
-function renderer:accept(node) 
-  return node:fencedCodeBlock():info() == "sample"
+function renderer:acceptable() 
+  return node_fenced_code, "sample"
 end
 
 function renderer:render(writer, node, context)

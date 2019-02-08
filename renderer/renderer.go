@@ -13,22 +13,48 @@ import (
 	"strings"
 
 	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
+	blackfriday "github.com/yuin/blackfriday/v2"
 	"github.com/yuin/gopher-lua"
 	"github.com/yuin/mellowdown/asset"
+	"github.com/yuin/mellowdown/log"
 	"github.com/yuin/mellowdown/theme"
 	"github.com/yuin/mellowdown/util"
-	blackfriday "gopkg.in/russross/blackfriday.v2"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
-type templateVars struct {
-	Debug            bool
-	Title            string
-	LiveReloadScript template.HTML
-	StyleSheets      template.HTML
-	Scripts          template.HTML
-	Header           template.HTML
-	Content          template.HTML
-	Footer           template.HTML
+type templateVars map[string]interface{}
+
+func (t templateVars) SetDev(v bool) {
+	t["Dev"] = v
+}
+
+func (t templateVars) SetTitle(v string) {
+	t["Title"] = v
+}
+
+func (t templateVars) SetLiveReloadScript(v template.HTML) {
+	t["LiveReloadScript"] = v
+}
+
+func (t templateVars) SetStyleSheets(v template.HTML) {
+	t["StyleSheets"] = v
+}
+
+func (t templateVars) SetScripts(v template.HTML) {
+	t["Scripts"] = v
+}
+
+func (t templateVars) SetHeader(v template.HTML) {
+	t["Header"] = v
+}
+
+func (t templateVars) SetContent(v template.HTML) {
+	t["Content"] = v
+}
+
+func (t templateVars) SetFooter(v template.HTML) {
+	t["Footer"] = v
 }
 
 type Format int
@@ -52,7 +78,8 @@ func FindFormat(name string) (Format, bool) {
 type HTMLRenderer struct {
 	*blackfriday.HTMLRenderer
 	fileSystem      asset.FileSystem
-	debug           bool
+	logger          log.Logger
+	dev             bool
 	sourceFile      string
 	sourceAST       *blackfriday.Node
 	sourceDirectory string
@@ -62,89 +89,113 @@ type HTMLRenderer struct {
 	theme           theme.Theme
 	wkhtmltopdfPath string
 	renderers       []Renderer
+	rendererIndex   map[NodeType]map[string]Renderer
 	staticDirectory string
+	buildContext    BuildContext
+	templateVars    map[string]interface{}
 	siteStorage     map[string]interface{}
 	pageStorage     map[string]interface{}
 
 	headerWriter bytes.Buffer
 	footerWriter bytes.Buffer
-	function     string
 }
 
 type HTMLRendererOption func(r *HTMLRenderer)
 
-func SourceFile(sourceFile string) HTMLRendererOption {
+func WithSourceFile(sourceFile string) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.sourceFile, _ = filepath.Abs(sourceFile)
 	}
 }
 
-func SourceAST(node *blackfriday.Node) HTMLRendererOption {
+func WithSourceAST(node *blackfriday.Node) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.sourceAST = node
 	}
 }
 
-func Debug() HTMLRendererOption {
+func WithDev() HTMLRendererOption {
 	return func(r *HTMLRenderer) {
-		r.debug = true
+		r.dev = true
 	}
 }
 
-func SourceDirectory(dir string) HTMLRendererOption {
+func WithSourceDirectory(dir string) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.sourceDirectory, _ = filepath.Abs(dir)
 	}
 }
 
-func OutputDirectory(outputDirectory string) HTMLRendererOption {
+func WithOutputDirectory(outputDirectory string) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.outputDirectory, _ = filepath.Abs(outputDirectory)
 	}
 }
 
-func OutputFormat(outputFormat Format) HTMLRendererOption {
+func WithOutputFormat(outputFormat Format) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.outputFormat = outputFormat
 	}
 }
 
-func Theme(theme theme.Theme) HTMLRendererOption {
+func WithTheme(theme theme.Theme) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.theme = theme
 	}
 }
 
-func StaticDirectory(path string) HTMLRendererOption {
+func WithStaticDirectory(path string) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.staticDirectory, _ = filepath.Abs(path)
 	}
 }
 
-func Renderers(renderers ...Renderer) HTMLRendererOption {
+func WithRenderers(renderers ...Renderer) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.renderers = renderers
+		for _, renderer := range renderers {
+			atype, aname := renderer.Acceptable()
+			_, ok := r.rendererIndex[atype]
+			if !ok {
+				r.rendererIndex[atype] = map[string]Renderer{}
+			}
+			r.rendererIndex[atype][aname] = renderer
+		}
 	}
 }
 
-func WkhtmltopdfPath(path string) HTMLRendererOption {
+func WithWkhtmltopdfPath(path string) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.wkhtmltopdfPath = path
 	}
 }
 
-func SiteStorage(s map[string]interface{}) HTMLRendererOption {
+func WithBuildContext(b BuildContext) HTMLRendererOption {
+	return func(r *HTMLRenderer) {
+		r.buildContext = b
+	}
+}
+
+func WithTemplateVars(vars map[string]interface{}) HTMLRendererOption {
+	return func(r *HTMLRenderer) {
+		r.templateVars = vars
+	}
+}
+
+func WithSiteStorage(s map[string]interface{}) HTMLRendererOption {
 	return func(r *HTMLRenderer) {
 		r.siteStorage = s
 	}
 }
 
-func NewHTMLRenderer(fileSystem asset.FileSystem, params blackfriday.HTMLRendererParameters, options ...HTMLRendererOption) *HTMLRenderer {
+func NewHTMLRenderer(logger log.Logger, fileSystem asset.FileSystem, params blackfriday.HTMLRendererParameters, options ...HTMLRendererOption) *HTMLRenderer {
 	abscwd, _ := filepath.Abs(".")
 	ret := &HTMLRenderer{
 		HTMLRenderer:    blackfriday.NewHTMLRenderer(params),
+		logger:          logger,
 		fileSystem:      fileSystem,
 		renderers:       []Renderer{},
+		rendererIndex:   map[NodeType]map[string]Renderer{},
 		sourceDirectory: abscwd,
 		outputDirectory: abscwd,
 		outputFormat:    HTML,
@@ -153,7 +204,6 @@ func NewHTMLRenderer(fileSystem asset.FileSystem, params blackfriday.HTMLRendere
 		staticDirectory: filepath.Join(abscwd, "statics"),
 		siteStorage:     map[string]interface{}{},
 		pageStorage:     nil,
-		function:        "",
 	}
 	for _, option := range options {
 		option(ret)
@@ -174,8 +224,8 @@ func NewHTMLRenderer(fileSystem asset.FileSystem, params blackfriday.HTMLRendere
 		ret.outputFile = util.ReplaceExtension(ret.outputFile, ".md", ".html")
 	}
 
-	for _, r := range ret.renderers {
-		r.NewDocument()
+	for _, renderer := range ret.renderers {
+		renderer.NewDocument(ret)
 	}
 	for _, r := range ret.renderers {
 		r.RenderHeader(ret.HeaderWriter(), ret)
@@ -192,45 +242,56 @@ func init() {
 	funcRegex = regexp.MustCompile(`(?:(?:.*[^\\])|\A)!(\w[\w0-9_-]+)!`)
 }
 
-func (r *HTMLRenderer) RenderNode(w io.Writer, node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
-	var n Node
-	f := ""
-	ok := false
-	if len(r.function) != 0 {
-		f = r.function
-		r.function = ""
-		if node.Type == blackfriday.Code {
-			n = newFunctionNode(node, f)
-			ok = true
-		} else {
-			fmt.Fprintf(w, "!%s!", f)
+func (r *HTMLRenderer) resolveReference(node *blackfriday.Node) {
+	dest := node.LinkData.Destination
+	if len(dest) != 0 {
+		d := string(dest)
+		if !util.IsUrl(d) {
+			if strings.HasPrefix(d, "#") {
+				id := strings.TrimLeft(d, "#")
+				label, ok := r.FindLabel(id)
+				if !ok {
+					r.logger.Error("%s : label %s is not defined.", r.SourceFile(), id)
+					return
+				}
+				relpath, _ := filepath.Rel(filepath.Dir(r.SourceFile()), label.DefinedIn())
+				node.LinkData.Destination = []byte(util.SlashPath(util.ReplaceExtension(relpath, ".md", ".html") + d))
+				text := string(node.FirstChild.Literal)
+				if text == " " {
+					node.FirstChild.Literal = []byte(label.Name())
+				}
+				return
+			}
+
+			if !strings.HasPrefix(d, ".") {
+				d = "./" + d
+			}
+			parts := strings.Split(d, "#")
+			if strings.HasSuffix(parts[0], ".md") {
+				parts[0] = util.ReplaceExtension(parts[0], ".md", ".html")
+				d = strings.Join(parts, "#")
+				node.LinkData.Destination = []byte(d)
+				return
+			}
+			dpath := filepath.Clean(filepath.Join(filepath.Dir(r.SourceFile()), d))
+			relpath, _ := filepath.Rel(filepath.Dir(r.SourceFile()), dpath)
+			staticFile := filepath.Join(r.StaticDirectory(), relpath)
+			node.LinkData.Destination = []byte(r.StaticPath(staticFile))
 		}
 	}
-	if node.Type == blackfriday.Text {
-		result := funcRegex.FindAllSubmatchIndex(node.Literal, -1)
-		if len(result) > 0 && result[0][len(result[0])-1] == len(node.Literal)-1 {
-			fmt.Fprint(w, string(node.Literal[:result[0][len(result[0])-2]-1]))
-			r.function = string(node.Literal[result[0][len(result[0])-2]:result[0][len(result[0])-1]])
+}
+
+func (r *HTMLRenderer) RenderNode(w io.Writer, node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+	r.resolveReference(node)
+	n, ok := newNode(node)
+	if ok {
+		renderer, found := r.findRenderer(n.Type(), n.Identifier())
+		if found {
+			if err := renderer.Render(w, n, r); err != nil {
+				r.logger.Error("%s: %s", r.sourceFile, err.Error())
+			}
 			return blackfriday.GoToNext
 		}
-	}
-
-	if !ok {
-		n, ok = newNode(node)
-	}
-	if ok {
-		for _, fr := range r.renderers {
-			if fr.Accept(n) {
-				if err := fr.Render(w, n, r); err != nil {
-					fmt.Fprintf(w, "ERROR:%s", err.Error())
-				}
-				return blackfriday.GoToNext
-			}
-		}
-	}
-
-	if ok && n.Type() == NodeFunction {
-		fmt.Fprintf(w, "!%s!", f)
 	}
 	return r.HTMLRenderer.RenderNode(w, node, entering)
 }
@@ -241,7 +302,8 @@ func (r *HTMLRenderer) ConvertString(source string) []byte {
 }
 
 func (r *HTMLRenderer) ConvertBytes(bs []byte) []byte {
-	parser := blackfriday.New(blackfriday.WithRenderer(r))
+	optList := []blackfriday.Option{blackfriday.WithRenderer(r), blackfriday.WithExtensions(blackfriday.CommonExtensions | blackfriday.Functions)}
+	parser := blackfriday.New(optList...)
 	return r.ConvertAST(parser.Parse(bs))
 }
 
@@ -284,8 +346,7 @@ func (r *HTMLRenderer) OutputDirectory() string {
 }
 
 func (r *HTMLRenderer) StaticPath(file string) string {
-	relpath, _ := filepath.Rel(filepath.Dir(r.OutputFile()), file)
-	return strings.Replace(relpath, "\\", "/", -1)
+	return util.SlashPath(util.CleanRelPath(filepath.Dir(r.OutputFile()), file))
 }
 
 func (r *HTMLRenderer) StaticDirectory() string {
@@ -325,6 +386,41 @@ func (r *HTMLRenderer) copyThemeFiles(files []os.FileInfo, filter func(os.FileIn
 	return nil
 }
 
+func (r *HTMLRenderer) FindLabel(id string) (Label, bool) {
+	if r.buildContext == nil {
+		return nil, false
+	}
+	return r.buildContext.FindLabel(id)
+}
+
+func (r *HTMLRenderer) FindResource(path string) (Resource, bool) {
+	if r.buildContext == nil {
+		return nil, false
+	}
+	return r.buildContext.FindResource(path)
+}
+
+func (r *HTMLRenderer) NumDocuments() int {
+	if r.buildContext == nil {
+		return 1
+	}
+	return r.buildContext.NumDocuments()
+}
+
+func (r *HTMLRenderer) NumStatics() int {
+	if r.buildContext == nil {
+		return 0
+	}
+	return r.buildContext.NumStatics()
+}
+
+func (r *HTMLRenderer) NumExtras() int {
+	if r.buildContext == nil {
+		return 0
+	}
+	return r.buildContext.NumExtras()
+}
+
 func (r *HTMLRenderer) Render() error {
 	optOutputDirectory := r.outputDirectory
 	r.pageStorage = map[string]interface{}{}
@@ -340,10 +436,6 @@ func (r *HTMLRenderer) Render() error {
 		defer os.RemoveAll(tmpOutputDirectory)
 	}
 
-	for _, r := range r.renderers {
-		r.NewDocument()
-	}
-
 	filename := filepath.Base(r.sourceFile)
 	var result []byte
 	if r.sourceAST != nil {
@@ -356,9 +448,12 @@ func (r *HTMLRenderer) Render() error {
 		result = r.ConvertBytes(bs)
 	}
 
-	tv := &templateVars{}
-	tv.Title = util.GetTitle(result)
-	tv.Content = template.HTML(result)
+	tv := templateVars{}
+	for k, v := range r.templateVars {
+		tv[k] = v
+	}
+	tv.SetTitle(util.GetTitle(result))
+	tv.SetContent(template.HTML(result))
 	themeFiles, err := r.theme.Files()
 	if err != nil {
 		return err
@@ -372,7 +467,7 @@ func (r *HTMLRenderer) Render() error {
 	}); err != nil {
 		return err
 	}
-	tv.StyleSheets = template.HTML(cssBuf.String())
+	tv.SetStyleSheets(template.HTML(cssBuf.String()))
 
 	var scriptBuf bytes.Buffer
 	if err := r.copyThemeFiles(themeFiles, func(f os.FileInfo) bool {
@@ -383,7 +478,7 @@ func (r *HTMLRenderer) Render() error {
 	}); err != nil {
 		return err
 	}
-	tv.Scripts = template.HTML(scriptBuf.String())
+	tv.SetScripts(template.HTML(scriptBuf.String()))
 
 	if err := r.copyThemeFiles(themeFiles, func(f os.FileInfo) bool {
 		return !strings.HasSuffix(f.Name(), ".css") && !strings.HasSuffix(f.Name(), ".js")
@@ -392,10 +487,10 @@ func (r *HTMLRenderer) Render() error {
 		return err
 	}
 
-	tv.LiveReloadScript = template.HTML(`<script src="http://localhost:35730/livereload.js"></script>`)
-	tv.Debug = r.debug
-	tv.Header = template.HTML(r.HeaderHTML())
-	tv.Footer = template.HTML(r.FooterHTML())
+	tv.SetLiveReloadScript(template.HTML(`<script src="http://localhost:35730/livereload.js"></script>`))
+	tv.SetDev(r.dev)
+	tv.SetHeader(template.HTML(r.HeaderHTML()))
+	tv.SetFooter(template.HTML(r.FooterHTML()))
 
 	htmlfile := filepath.Join(r.outputDirectory, util.ReplaceExtension(filename, ".md", ".html"))
 	if err := util.EnsureDirectoryExists(r.outputDirectory); err != nil {
@@ -423,6 +518,10 @@ func (r *HTMLRenderer) Render() error {
 		page := wkhtmltopdf.NewPage(htmlfile)
 		page.FooterRight.Set("[page]")
 		page.FooterFontSize.Set(10)
+		page.PrintMediaType.Set(true)
+		page.NoStopSlowScripts.Set(true)
+		page.DisableJavascript.Set(false)
+		page.JavascriptDelay.Set(10000)
 		pdfg.AddPage(page)
 
 		if err := pdfg.Create(); err != nil {
@@ -434,6 +533,19 @@ func (r *HTMLRenderer) Render() error {
 		}
 	}
 	return nil
+}
+
+func (r *HTMLRenderer) findRenderer(n NodeType, name string) (Renderer, bool) {
+	v1, ok := r.rendererIndex[n]
+	if !ok {
+		return nil, false
+	}
+	v2, ok := v1[name]
+	if ok {
+		return v2, true
+	}
+	v3, ok := v1[Any]
+	return v3, ok
 }
 
 type OptionType int
@@ -487,8 +599,8 @@ type Renderer interface {
 	Name() string
 	AddOption(Option)
 	InitOption(Option)
-	NewDocument()
-	Accept(node Node) bool
+	NewDocument(context RenderingContext)
+	Acceptable() (NodeType, string)
 	Render(w io.Writer, node Node, context RenderingContext) error
 	RenderHeader(w io.Writer, context RenderingContext) error
 	RenderFooter(w io.Writer, context RenderingContext) error
@@ -499,13 +611,58 @@ type MarkdownConverter interface {
 	ConvertBytes([]byte) []byte
 }
 
-type RenderingContext interface {
-	Converter() MarkdownConverter
-	SourceFile() string
-	OutputFile() string
-	OutputDirectory() string
-	StaticDirectory() string
-	StaticPath(file string) string
-	SiteStorage() map[string]interface{}
-	PageStorage() map[string]interface{}
+func readMeta(data []byte) (map[interface{}]interface{}, []byte, error) {
+	s := string(data)
+	buf := []string{}
+	rest := []string{}
+	flag := false
+	for _, line := range strings.Split(s, "\n") {
+		if len(strings.TrimSpace(line)) == 0 {
+			flag = true
+			continue
+		}
+		if flag {
+			rest = append(rest, line)
+		} else {
+			buf = append(buf, line)
+		}
+	}
+	if len(buf) > 0 {
+		yamlText := strings.Join(buf, "\n")
+		var meta interface{}
+		err := yaml.Unmarshal([]byte(yamlText), &meta)
+		if err != nil {
+			return nil, nil, err
+		}
+		return meta.(map[interface{}]interface{}), []byte(strings.Join(rest, "\n")), nil
+	} else {
+		return map[interface{}]interface{}{}, data, nil
+	}
+}
+
+func readMetaStruct(data []byte, dest interface{}) ([]byte, error) {
+	s := string(data)
+	buf := []string{}
+	rest := []string{}
+	flag := false
+	for _, line := range strings.Split(s, "\n") {
+		if len(strings.TrimSpace(line)) == 0 {
+			flag = true
+			continue
+		}
+		if flag {
+			rest = append(rest, line)
+		} else {
+			buf = append(buf, line)
+		}
+	}
+	if len(buf) > 0 {
+		yamlText := strings.Join(buf, "\n")
+		if err := yaml.Unmarshal([]byte(yamlText), dest); err != nil {
+			return nil, err
+		}
+		return []byte(strings.Join(rest, "\n")), nil
+	} else {
+		return data, nil
+	}
 }

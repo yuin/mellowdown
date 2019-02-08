@@ -705,3 +705,22 @@
 	}
 }
 
+.toc-container {
+    background: #f9f9f9 none repeat scroll 0 0;
+    border: 1px solid #aaa;
+    display: table;
+    font-size: 95%;
+    margin-bottom: 1em;
+    padding-left: 1em;
+    padding-right: 1em;
+    width: auto;
+}
+
+.toc-title {
+    font-weight: 700;
+    text-align: center;
+}
+
+.toc-container li, .toc-container ol, .toc-container ol li{
+    list-style: outside none none !important;
+}
